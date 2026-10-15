@@ -2,7 +2,9 @@
 
 Every item in the design document (*Sunwai – AI-Routed Grievance Redressal System for NSUT*), where it is implemented, and the test that proves it.
 
-✅ = implemented and tested · ⏳ = later phase (backend / frontend)
+✅ = implemented and tested · ⏳ = later phase (frontend)
+
+SQL tests are in `database/tests/` (90 checks). Backend tests are in `backend/tests/` (46 checks, `test_*.py`).
 
 ## 1. Tables (28)
 
@@ -63,7 +65,7 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | 1 | Organisation & People | tables 1–5, `02_seed_reference.sql` | test_routing, test_conflicts |
 | 2 | Committees & Academics | tables 6–12 | test_conflicts, test_reevaluation |
 | 3 | Complaint Registration | `file_complaint()`, `add_complaint_party()` | test_routing |
-| 4 | AI Triage & Completeness Check | `record_ai_triage()`, `check_completeness()`, `ask_missing_questions()`, `answer_clarification()`, `fill_from_profile()`, `find_person_candidates()` | test_routing ✅ · LLM call ⏳ phase 3 |
+| 4 | AI Triage & Completeness Check | `record_ai_triage()`, `check_completeness()`, `ask_missing_questions()`, `answer_clarification()`, `fill_from_profile()`, `find_person_candidates()` | test_routing · backend `services/llm.py`, `services/triage.py` → test_triage.py, test_llm.py |
 | 5 | Categories, Priority & Routing | `compute_priority()`, `route_complaint()`, `resolve_role_position()` | test_routing |
 | 6 | Conflict-of-Interest Engine | `conflict_reason()`, `assign_up_chain()`, `assign_to_committee()` | test_conflicts |
 | 7 | Workflow, Escalation & Appeals | triggers T2–T4, `escalate_overdue()`, `request_info()`, `close_stale_needs_info()`, `reopen_complaint()`, `file_appeal()`, `decide_appeal()` | test_workflow |
@@ -78,15 +80,16 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | Visibility Public / Confidential / Anonymous | `complaint.visibility` + trigger T1 | test_routing, test_security | ✅ |
 | Anonymous only where the category allows | trigger T1 | — (constraint raise) | ✅ |
 | Sensitive complaints forced to Confidential | trigger T1, `record_ai_triage()` | test_routing #12 | ✅ |
-| AI triage stored (category, urgency, confidence, sensitivity, summary) | `ai_triage_result`, `record_ai_triage()` | test_routing | ✅ (LLM call ⏳) |
+| AI triage stored (category, urgency, confidence, sensitivity, summary) | `ai_triage_result`, `record_ai_triage()`; OpenAI call in `services/llm.py` (JSON output, validated, cached) | test_routing, test_llm.py | ✅ |
 | Confident AI category auto-accepted (≥ 0.70), else triage officer | `record_ai_triage()`, `confirm_triage()`, `v_triage_queue` | test_routing #8, #9 | ✅ |
-| Name redaction before the AI call | backend `services/redaction.py` | — | ⏳ phase 3 |
+| Name redaction before the AI call | `services/redaction.py` (names from the person table, phone, e-mail, roll no.) | test_triage.py | ✅ |
+| AI fallback when OpenAI is unavailable | `services/fallback.py` (English + Hinglish keywords) | test_llm.py, test_triage.py | ✅ |
 | Completeness check (CategoryRequirement vs ComplaintDetail) | `check_completeness()` (one SQL query) | test_routing #10 | ✅ |
 | Missing details filled from the profile | `fill_from_profile()` (source = Profile) | test_routing #1 | ✅ |
 | Short follow-up questions | `ask_missing_questions()`, `clarification` | test_routing #10, #11 | ✅ |
-| Live requirements checklist | data from `category_requirement`; UI | — | ⏳ phase 4 |
+| Live requirements checklist | `POST /api/triage/preview` builds it from `category_requirement` + profile; UI ⏳ phase 4 | test_triage.py | ✅ (API) |
 | Respondent role question ("student / faculty / staff / not sure") | requirement `respondent_role` in categories 11–14 | test_routing #13 | ✅ |
-| Person disambiguation ("Ram") | `find_person_candidates()` | test_routing #14 | ✅ |
+| Person disambiguation ("Ram") | `find_person_candidates()` (word-start match, ranked by connection); shown in the preview | test_routing #14, test_triage.py | ✅ |
 | Sensitive complaints never blocked | only `respondent_role` mandatory; "Unknown" counts | test_routing #12 | ✅ |
 | Priority = max(category base, AI urgency); AI can't lower | `compute_priority()` | test_routing #2 | ✅ |
 | Default deadline from priority when category has none | `default_sla_hours()` | test_routing #8 | ✅ |
@@ -113,14 +116,16 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | Committee-only views | `v_icc_cases`, `v_antiragging_cases`, `v_sgrc_cases` | test_security #2, #6 | ✅ |
 | Row-level security | 16 policies | test_security #1, #5, #6, #9 | ✅ |
 | Separate ComplainantIdentity, hidden for Anonymous | `can_see_identity()` + policy | test_security #7 | ✅ |
-| Access logging of confidential cases | `open_complaint()` → `access_log` | test_security #8 | ✅ |
+| Access logging of confidential cases | `open_complaint()` (runs with the caller's RLS) → `log_access()` → `access_log` | test_security #8, test_security.py | ✅ |
 | History tables append-only | REVOKE + trigger T7 | test_workflow #3, test_reevaluation #7, test_security #4 | ✅ |
 | Analytics: resolution time per office | `v_resolution_by_office` | manual check | ✅ |
 | Analytics: deadline breaches | `v_sla_breaches` | manual check | ✅ |
 | Analytics: hotspots | `v_hotspots` | manual check | ✅ |
 | Analytics: AI accuracy | `v_ai_accuracy` | manual check | ✅ |
 | Analytics: categories needing most clarification | `v_clarification_stats` | manual check | ✅ |
-| Escalation runs automatically every few minutes | backend scheduler | — | ⏳ phase 3 |
+| Escalation runs automatically every few minutes | `services/scheduler.py` (as `sunwai_admin`); demo clock + `POST /api/demo/escalate` | test_zz_escalation.py | ✅ |
+| Every API request runs as a real DB role | `db.session()`: `SET LOCAL ROLE`, `app.user_id` | test_security.py | ✅ |
+| Show DCL refusals live | `POST /api/demo/try-access` (8 fixed forbidden queries) | test_security.py | ✅ |
 | UI for every role | frontend | — | ⏳ phase 4 |
 
 ## 5. Complaint domains and routes (doc §3.3)
@@ -150,3 +155,4 @@ These are needed to make the design work. None of them changes the 28-table stru
 - `unit_type` value `University` for the root of the department tree.
 - The doc lists 12 domains; there are 15 categories because hostel maintenance is split into water, electricity, and cleaning/furniture, and academic into timetable and internal marks/attendance.
 - `resolution_outcome` values `Fixed` and `InsufficientInfo`, alongside the doc's `Upheld`, `Dismissed` and `ActionTaken`.
+- Phase 3 additions to the SQL: `record_ai_triage()` takes the details the student typed on the filing form (`p_user_details`, stored with source `User`); `my_profile()` lets the filing screen read the student's own hostel and room; `find_person_candidates()` matches the start of a word ("Ram" no longer finds Vikram); `open_complaint()` became SECURITY INVOKER so row-level security decides who may open a case (this also lets the administrator open non-sensitive cases), with the log write moved to `log_access()`.

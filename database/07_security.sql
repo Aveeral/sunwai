@@ -97,6 +97,8 @@ REVOKE UPDATE, DELETE ON status_history, routing_decision, conflict_exclusion,
 -- 7. Views
 -- ---------------------------------------------------------------------
 GRANT SELECT ON v_complaint_overview, v_my_complaints, v_complaint_timeline TO sunwai_student;
+-- the admin reads the same overview; RLS removes every sensitive complaint
+GRANT SELECT ON v_complaint_overview, v_complaint_timeline TO sunwai_admin;
 GRANT SELECT ON v_handler_queue   TO sunwai_handler;
 GRANT SELECT ON v_committee_cases TO sunwai_icc, sunwai_antiragging, sunwai_sgrc;
 GRANT SELECT ON v_icc_cases         TO sunwai_icc;
@@ -121,12 +123,15 @@ GRANT EXECUTE ON FUNCTION app_now(), current_person_id(), person_name(int), prio
 
 -- complainant actions
 GRANT EXECUTE ON FUNCTION file_complaint(text,text,boolean),
-      record_ai_triage(int,int,text,numeric,boolean,text,jsonb,jsonb),
+      record_ai_triage(int,int,text,numeric,boolean,text,jsonb,jsonb,jsonb),
       add_complaint_party(int,int,text,text,text,text),
-      answer_clarification(int,int,text), find_person_candidates(text,text),
+      answer_clarification(int,int,text), find_person_candidates(text,text), my_profile(),
       rate_and_close(int,int), reopen_complaint(int,text), file_appeal(int,text),
-      file_reevaluation(int,jsonb), open_complaint(int)
+      file_reevaluation(int,jsonb)
   TO sunwai_student;
+
+-- opening a complaint (RLS decides; the view of a confidential case is logged)
+GRANT EXECUTE ON FUNCTION open_complaint(int), log_access(int,text) TO sunwai_student, sunwai_admin;
 
 -- handler actions
 GRANT EXECUTE ON FUNCTION request_info(int,text), decide_dispute(int,int,text,numeric),

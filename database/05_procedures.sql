@@ -135,14 +135,18 @@ END $$;
 
 -- Store the LLM's structured output.
 --   p_details : {"hostel":"BH-3","room_or_floor":"2nd floor", ...}
---   p_parties : [{"person_id":101,"party_role":"Respondent","stated_role":"Faculty"}, ...]
+--   p_parties : [{"person_id":101,"party_role":"Respondent","stated_role":"Faculty",
+--                 "source":"User"}, ...]
+--   p_user_details : details the complainant typed or confirmed on the
+--                    filing screen (source 'User'; they win over the AI's)
 -- The AI's category is accepted automatically only when it is confident
 -- (>= 0.70) and not General/Other; otherwise a triage officer confirms it.
 CREATE OR REPLACE FUNCTION record_ai_triage(p_complaint int, p_category int, p_urgency text,
                                             p_confidence numeric, p_sensitive boolean,
                                             p_summary text,
                                             p_details jsonb DEFAULT '{}'::jsonb,
-                                            p_parties jsonb DEFAULT '[]'::jsonb)
+                                            p_parties jsonb DEFAULT '[]'::jsonb,
+                                            p_user_details jsonb DEFAULT '{}'::jsonb)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = sunwai, public AS $$
 DECLARE
   v_key text; v_val text; v_party jsonb;
@@ -154,6 +158,14 @@ BEGIN
   INSERT INTO ai_triage_result (complaint_id, suggested_category_id, urgency, confidence,
                                 sensitivity_flag, summary)
   VALUES (p_complaint, p_category, p_urgency, p_confidence, p_sensitive, p_summary);
+
+  FOR v_key, v_val IN SELECT key, value FROM jsonb_each_text(p_user_details) LOOP
+    IF v_val IS NOT NULL AND length(trim(v_val)) > 0 THEN
+      INSERT INTO complaint_detail (complaint_id, field_name, value, source)
+      VALUES (p_complaint, v_key, left(v_val, 200), 'User')
+      ON CONFLICT (complaint_id, field_name) DO UPDATE SET value = EXCLUDED.value, source = 'User';
+    END IF;
+  END LOOP;
 
   FOR v_key, v_val IN SELECT key, value FROM jsonb_each_text(p_details) LOOP
     IF v_val IS NOT NULL AND length(trim(v_val)) > 0 THEN
@@ -168,7 +180,8 @@ BEGIN
                                 nullif(v_party->>'person_id','')::int,
                                 coalesce(v_party->>'party_role','Respondent'),
                                 coalesce(v_party->>'stated_role','Unknown'),
-                                v_party->>'description', 'AI');
+                                v_party->>'description',
+                                coalesce(v_party->>'source', 'AI'));
   END LOOP;
 
   -- a sensitive complaint is never left Public
@@ -471,10 +484,29 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = sunwai, public AS $$
       WHERE o.faculty_id = p.person_id AND e.student_id = me.person_id
       LIMIT 1) teach ON TRUE
   WHERE p.person_id <> me.person_id
-    AND (p.first_name || ' ' || p.last_name) ILIKE '%' || p_name || '%'
+    -- the name must start a word: "Ram" finds Ram Kumar and Ramesh, not Vikram
+    AND (p.first_name || ' ' || p.last_name)
+        ~* ('\m' || regexp_replace(trim(p_name), '[^A-Za-z ]', '', 'g'))
     AND (p_stated_role = 'Unknown' OR p.person_type = p_stated_role)
-  ORDER BY 6 DESC, 2
+  ORDER BY 6 DESC,
+           (lower(p.first_name) = lower(trim(p_name)) OR lower(p.last_name) = lower(trim(p_name))
+            OR lower(p.first_name || ' ' || p.last_name) = lower(trim(p_name))) DESC,
+           2
   LIMIT 5;
+$$;
+
+-- The logged-in person's own profile (students cannot read the student
+-- table directly, so the filing screen asks through this function).
+CREATE OR REPLACE FUNCTION my_profile()
+RETURNS TABLE (person_id int, full_name text, person_type varchar, department varchar,
+               hostel varchar, room_no varchar)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = sunwai, public AS $$
+  SELECT p.person_id, person_name(p.person_id), p.person_type, d.name, h.name, s.room_no
+  FROM person p
+  JOIN department d ON d.unit_id = p.unit_id
+  LEFT JOIN student s ON s.person_id = p.person_id
+  LEFT JOIN department h ON h.unit_id = s.hostel_unit_id
+  WHERE p.person_id = current_person_id();
 $$;
 
 -- =====================================================================
@@ -755,19 +787,33 @@ BEGIN
   RETURN v_seq;
 END $$;
 
--- Record that a complaint was opened (confidential / sensitive cases are logged).
+-- Write one AccessLog row for the logged-in person (definer: nobody has
+-- INSERT on access_log directly).
+CREATE OR REPLACE FUNCTION log_access(p_complaint int, p_action text DEFAULT 'View')
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = sunwai, public AS $$
+  INSERT INTO access_log (complaint_id, accessed_by, db_role, action, accessed_at)
+  VALUES (p_complaint, current_person_id(),
+          coalesce(nullif(current_setting('app.role', true), ''), session_user),
+          p_action, app_now());
+$$;
+
+-- Open a complaint: refuse if the caller may not see it, and log the view
+-- of every confidential / sensitive case.
+-- SECURITY INVOKER on purpose: the SELECT below runs with the CALLER's
+-- row-level security, so "may this person see it?" is decided by the same
+-- RLS policies as every other query (this also covers the administrator,
+-- who may see non-sensitive cases only).
 CREATE OR REPLACE FUNCTION open_complaint(p_complaint int)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = sunwai, public AS $$
+RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path = sunwai, public AS $$
+DECLARE v_visibility text;
 BEGIN
-  IF NOT can_see_complaint(p_complaint) THEN
+  SELECT visibility INTO v_visibility FROM complaint WHERE complaint_id = p_complaint;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'permission denied for complaint %', p_complaint
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  IF is_sensitive(p_complaint)
-     OR (SELECT visibility <> 'Public' FROM complaint WHERE complaint_id = p_complaint) THEN
-    INSERT INTO access_log (complaint_id, accessed_by, db_role, action, accessed_at)
-    VALUES (p_complaint, current_person_id(),
-            coalesce(nullif(current_setting('app.role', true), ''), session_user), 'View', app_now());
+  IF is_sensitive(p_complaint) OR v_visibility <> 'Public' THEN
+    PERFORM log_access(p_complaint, 'View');
     RETURN TRUE;
   END IF;
   RETURN FALSE;

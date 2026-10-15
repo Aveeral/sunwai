@@ -17,8 +17,8 @@ A DBMS lab project. Anyone at NSUT can file a complaint in plain English or Hing
 |---|---|
 | 1. Database structure (28 tables, seed data) | ✅ done |
 | 2. Database logic (triggers, procedures, views, security, 90 tests) | ✅ done |
-| 3. Backend (FastAPI) + LLM triage | ⏳ next |
-| 4. Frontend (React) | ⏳ |
+| 3. Backend (FastAPI) + LLM triage (46 tests) | ✅ done |
+| 4. Frontend (React) | ⏳ next |
 | 5. Demo script, deployment | ⏳ |
 
 ## Folder layout
@@ -26,8 +26,8 @@ A DBMS lab project. Anyone at NSUT can file a complaint in plain English or Hing
 ```
 database/   the graded SQL: schema, data, triggers, procedures, views, security, tests
 docs/       explanations, coverage checklist, viva notes
-scripts/    one-command database reset
-backend/    (phase 3)
+scripts/    reset the database, set up / run / test the backend
+backend/    FastAPI app: LLM triage, login, one endpoint per screen, tests
 frontend/   (phase 4)
 ```
 
@@ -87,7 +87,18 @@ SELECT * FROM sunwai.v_icc_cases;                                    -- permissi
 ROLLBACK;
 ```
 
+## Running the backend
+
+Needs Python 3.10 or newer (`python3 --version`). Put your settings in `.env` (copy `.env.example`); without an OpenAI key the offline classifier is used.
+
+```bash
+bash scripts/setup_backend.sh     # once
+bash scripts/run_backend.sh       # http://localhost:8000/docs to try every endpoint
+bash scripts/test_backend.sh      # 46 checks (resets the database before and after)
+```
+
 ## Documents
 
 - `docs/01_database_explained.md`: how everything works, plus likely viva questions per member
+- `docs/02_backend_explained.md`: how the backend and the LLM triage work, plus viva questions
 - `docs/coverage.md`: every table and feature from the design doc, mapped to code and tests
