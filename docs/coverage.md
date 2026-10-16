@@ -2,9 +2,9 @@
 
 Every item in the design document (*Sunwai – AI-Routed Grievance Redressal System for NSUT*), where it is implemented, and the test that proves it.
 
-✅ = implemented and tested · ⏳ = later phase (frontend)
+✅ = implemented and tested
 
-SQL tests are in `database/tests/` (90 checks). Backend tests are in `backend/tests/` (46 checks, `test_*.py`).
+SQL tests are in `database/tests/` (90 checks). Backend tests are in `backend/tests/` (47 checks). The website was checked end to end in a browser (file, resolve, rate, answer a question, triage, appeal, re-evaluation, refused access).
 
 ## 1. Tables (28)
 
@@ -87,7 +87,7 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | Completeness check (CategoryRequirement vs ComplaintDetail) | `check_completeness()` (one SQL query) | test_routing #10 | ✅ |
 | Missing details filled from the profile | `fill_from_profile()` (source = Profile) | test_routing #1 | ✅ |
 | Short follow-up questions | `ask_missing_questions()`, `clarification` | test_routing #10, #11 | ✅ |
-| Live requirements checklist | `POST /api/triage/preview` builds it from `category_requirement` + profile; UI ⏳ phase 4 | test_triage.py | ✅ (API) |
+| Live requirements checklist | `POST /api/triage/preview` builds it from `category_requirement` + profile; shown while typing on the File a complaint screen | test_triage.py | ✅ |
 | Respondent role question ("student / faculty / staff / not sure") | requirement `respondent_role` in categories 11–14 | test_routing #13 | ✅ |
 | Person disambiguation ("Ram") | `find_person_candidates()` (word-start match, ranked by connection); shown in the preview | test_routing #14, test_triage.py | ✅ |
 | Sensitive complaints never blocked | only `respondent_role` mandatory; "Unknown" counts | test_routing #12 | ✅ |
@@ -108,7 +108,7 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | Escalation up the chain, conflict check re-run | `escalate_overdue()` | test_workflow #5 | ✅ |
 | Academic / exam: Dean Academics → SGRC | `escalate_overdue()` | test_workflow #6 | ✅ |
 | Reopen once within 7 days | `reopen_complaint()` | test_workflow #8 | ✅ |
-| Rate the resolution | `rate_and_close()`, `feedback_rating` | seed data | ✅ |
+| Rate the resolution | `rate_and_close()`, `feedback_rating` | test_workflow.py | ✅ |
 | Appeal to the Ombudsperson within the window | `file_appeal()`, `decide_appeal()` | test_workflow #9, #10 | ✅ |
 | Re-evaluation: question-wise disputes, independent reviewer, mark log | `file_reevaluation()`, `assign_reviewer()`, `decide_dispute()`, trigger T6 | test_reevaluation | ✅ |
 | DCL roles per user type | 8 roles + `sunwai_app` login | test_security | ✅ |
@@ -126,7 +126,8 @@ Proven by `test_schema.sql`: exactly 28 tables, 28 primary keys, composite keys 
 | Escalation runs automatically every few minutes | `services/scheduler.py` (as `sunwai_admin`); demo clock + `POST /api/demo/escalate` | test_zz_escalation.py | ✅ |
 | Every API request runs as a real DB role | `db.session()`: `SET LOCAL ROLE`, `app.user_id` | test_security.py | ✅ |
 | Show DCL refusals live | `POST /api/demo/try-access` (8 fixed forbidden queries) | test_security.py | ✅ |
-| UI for every role | frontend | — | ⏳ phase 4 |
+| UI for every role | `frontend/src/pages/` (one screen per file) | browser walkthrough | ✅ |
+| Analytics with window functions | `v_resolution_by_office.speed_rank` (RANK), `v_weekly_trend` (LAG, running SUM) | dashboard | ✅ |
 
 ## 5. Complaint domains and routes (doc §3.3)
 

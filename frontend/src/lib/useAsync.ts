@@ -1,0 +1,22 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError } from "../api/client";
+
+/** Load data on mount (and when deps change); exposes reload(). */
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [loading, setLoading] = useState(true);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try { setData(await fnRef.current()); setError(null); }
+    catch (e) { setError(e instanceof ApiError ? e : new ApiError(0, String(e), false)); }
+    finally { setLoading(false); }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void reload(); }, deps);
+  return { data, error, loading, reload, setData };
+}

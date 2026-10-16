@@ -164,7 +164,10 @@ SELECT f.office,
              FILTER (WHERE c.resolved_at IS NOT NULL), 1)               AS avg_hours_to_resolve,
        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM routing_decision e
                         WHERE e.complaint_id = c.complaint_id
-                          AND e.decision_type = 'Escalation'))          AS escalated
+                          AND e.decision_type = 'Escalation'))          AS escalated,
+       -- window function: rank offices by speed (fastest = 1)
+       rank() OVER (ORDER BY avg(extract(epoch FROM (c.resolved_at - c.filed_at)) / 3600)
+                    FILTER (WHERE c.resolved_at IS NOT NULL) NULLS LAST)  AS speed_rank
 FROM first_handler f JOIN complaint c USING (complaint_id)
 GROUP BY f.office
 ORDER BY complaints DESC;
@@ -239,8 +242,12 @@ SELECT count(*)                                                       AS total_c
 FROM complaint;
 
 -- Complaints per domain per week (for the trend chart)
+-- Window functions: change from the previous week and running total per domain
 CREATE OR REPLACE VIEW v_weekly_trend AS
-SELECT date_trunc('week', c.filed_at)::date AS week, cat.domain, count(*) AS complaints
+SELECT date_trunc('week', c.filed_at)::date AS week, cat.domain, count(*) AS complaints,
+       count(*) - lag(count(*)) OVER w AS change_vs_last_week,
+       sum(count(*)) OVER w            AS running_total
 FROM complaint c JOIN category cat USING (category_id)
 GROUP BY 1, 2
+WINDOW w AS (PARTITION BY cat.domain ORDER BY date_trunc('week', c.filed_at)::date)
 ORDER BY 1, 2;

@@ -17,9 +17,9 @@ A DBMS lab project. Anyone at NSUT can file a complaint in plain English or Hing
 |---|---|
 | 1. Database structure (28 tables, seed data) | ✅ done |
 | 2. Database logic (triggers, procedures, views, security, 90 tests) | ✅ done |
-| 3. Backend (FastAPI) + LLM triage (46 tests) | ✅ done |
-| 4. Frontend (React) | ⏳ next |
-| 5. Demo script, deployment | ⏳ |
+| 3. Backend (FastAPI) + LLM triage (47 tests) | ✅ done |
+| 4. Frontend (React) | ✅ done |
+| 5. Demo script, deployment | ⏳ next |
 
 ## Folder layout
 
@@ -28,7 +28,7 @@ database/   the graded SQL: schema, data, triggers, procedures, views, security,
 docs/       explanations, coverage checklist, viva notes
 scripts/    reset the database, set up / run / test the backend
 backend/    FastAPI app: LLM triage, login, one endpoint per screen, tests
-frontend/   (phase 4)
+frontend/   React website: one screen per file in src/pages
 ```
 
 ## Running the database on a Mac
@@ -94,11 +94,21 @@ Needs Python 3.10 or newer (`python3 --version`). Put your settings in `.env` (c
 ```bash
 bash scripts/setup_backend.sh     # once
 bash scripts/run_backend.sh       # http://localhost:8000/docs to try every endpoint
-bash scripts/test_backend.sh      # 46 checks (resets the database before and after)
+bash scripts/test_backend.sh      # 47 checks (resets the database before and after)
+```
+
+## Running the website
+
+Needs Node.js 18 or newer (`node -v`). Keep the backend running in another Terminal tab.
+
+```bash
+bash scripts/setup_frontend.sh    # once
+bash scripts/run_frontend.sh      # open http://localhost:5173
 ```
 
 ## Documents
 
 - `docs/01_database_explained.md`: how everything works, plus likely viva questions per member
 - `docs/02_backend_explained.md`: how the backend and the LLM triage work, plus viva questions
+- `docs/03_frontend_explained.md`: the screens, how they map to the database, and a demo walkthrough
 - `docs/coverage.md`: every table and feature from the design doc, mapped to code and tests

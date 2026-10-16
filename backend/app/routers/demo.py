@@ -41,6 +41,9 @@ ATTEMPTS = {
     "delete_history": (
         "Delete a complaint's status history",
         "DELETE FROM status_history WHERE complaint_id = (SELECT min(complaint_id) FROM complaint)"),
+    "delete_access_log": (
+        "Erase the audit log",
+        "DELETE FROM access_log"),
     "read_access_log": (
         "Read the audit log of who opened confidential cases",
         "SELECT count(*) AS log_rows FROM access_log"),

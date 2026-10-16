@@ -77,7 +77,7 @@ def complaint_page(cid: int, user: User = Depends(current_user)):
                 FROM conflict_exclusion e JOIN routing_decision d USING (decision_id)
                 WHERE d.complaint_id = %s ORDER BY e.decision_id""", (cid,)),
             "timeline": try_fetch(cur, "SELECT at, kind, title, detail FROM v_complaint_timeline"
-                                       " WHERE complaint_id = %s ORDER BY at", (cid,)),
+                                       " WHERE complaint_id = %s ORDER BY at, kind = 'Routing', kind", (cid,)),
             "ai": try_fetch(cur, """
                 SELECT a.urgency, a.confidence, a.sensitivity_flag, a.summary,
                        c.name AS suggested_category, a.reviewed_at,

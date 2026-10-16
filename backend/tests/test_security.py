@@ -37,6 +37,7 @@ def test_rls_limits_rows_even_for_select_star(client, login):
     (203, None, "delete_history"),                # append-only
     (209, None, "read_identity"),                 # admin never sees who complained
     (1001, None, "read_access_log"),
+    (209, None, "delete_access_log"),         # even the admin cannot erase the audit log
 ])
 def test_forbidden_actions_are_refused(client, login, person, role, action):
     r = _attempt(client, login(person, role), action)
