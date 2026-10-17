@@ -48,7 +48,7 @@ Open the Vercel link, log in as Aarav and file a complaint. Done.
 ## Before the viva
 
 - **Wake the server.** The free Render plan sleeps after 15 minutes without visitors, and the first request takes about 30 seconds. Open the link a minute before you present; the login screen shows "Waking up the server" while it starts.
-- **Fresh demo data.** Run `bash scripts/deploy_db.sh "NEON-OWNER-STRING"` again. It rebuilds everything and prints a **new** `sunwai_app` password, so paste the new line into Render's `DATABASE_URL` and save.
+- **Fresh demo data.** Run `bash scripts/deploy_db.sh` (no string needed after the first time). It rebuilds everything and keeps the same `sunwai_app` password, which it remembers in `.deploy.env` (not committed), so Render needs no change.
 - **Reset the demo clock** in the sidebar if someone moved it.
 - **Updates.** Every `git push` redeploys the backend (Render) and the website (Vercel) automatically. Database changes need `deploy_db.sh` again.
 
