@@ -1,0 +1,29 @@
+# Render Blueprint: the Sunwai API (FastAPI). The database is on Neon and the
+# website on Vercel. Secrets marked sync: false are typed in on Render's
+# dashboard and never stored in GitHub.
+services:
+  - type: web
+    name: sunwai-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL          # printed by scripts/deploy_db.sh (logs in as sunwai_app)
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: LLM_MODE
+        value: auto
+      - key: SECRET_KEY            # signs login tokens
+        generateValue: true
+      - key: SCHEDULER_SECONDS
+        value: "300"
+      - key: CORS_ORIGINS          # your Vercel address, e.g. https://sunwai.vercel.app
+        sync: false

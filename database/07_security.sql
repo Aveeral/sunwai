@@ -24,9 +24,13 @@ BEGIN
   END LOOP;
   -- the application login: may switch to any of the roles above
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sunwai_app') THEN
-    CREATE ROLE sunwai_app LOGIN PASSWORD 'sunwai_app_dev' NOINHERIT;
+    CREATE ROLE sunwai_app LOGIN NOINHERIT;
   END IF;
 END $$;
+
+-- The application login's password. Locally it is 'sunwai_app_dev'; for a
+-- deployment, scripts/deploy_db.sh passes a long random one (-v app_password=...).
+ALTER ROLE sunwai_app PASSWORD :'app_password';
 
 -- Everyone who handles complaints can also file their own (role inheritance)
 GRANT sunwai_student TO sunwai_handler, sunwai_triage, sunwai_icc,

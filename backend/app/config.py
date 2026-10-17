@@ -27,8 +27,9 @@ class Settings:
     # How often the escalation job runs (seconds). 0 turns it off.
     scheduler_seconds: int = int(os.getenv("SCHEDULER_SECONDS", "300"))
 
-    cors_origins: list[str] = os.getenv(
-        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    # where the website is served from (comma-separated); trailing "/" ignored
+    cors_origins: list[str] = [o.strip().rstrip("/") for o in os.getenv(
+        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
     @property
     def use_openai(self) -> bool:

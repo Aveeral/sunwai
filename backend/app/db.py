@@ -28,7 +28,9 @@ ROLES = {
 }
 
 pool = ConnectionPool(settings.database_url, min_size=1, max_size=10, open=False,
-                      kwargs={"autocommit": True, "row_factory": dict_row})
+                      # prepare_threshold=None: no server-side prepared statements, so it
+                      # also works through a connection pooler such as Neon's
+                      kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None})
 
 
 # ---------------------------------------------------------------- demo clock

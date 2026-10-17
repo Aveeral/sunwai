@@ -4,6 +4,11 @@
 --  (run it from inside the database/ folder)
 -- =====================================================================
 \set ON_ERROR_STOP on
+-- password for the sunwai_app login (override with -v app_password=...)
+\if :{?app_password}
+\else
+  \set app_password sunwai_app_dev
+\endif
 \echo '1/8 schema (28 tables)'
 \i 01_schema.sql
 \echo '2/8 reference data (NSUT structure, categories, rules)'

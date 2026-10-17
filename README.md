@@ -19,7 +19,7 @@ A DBMS lab project. Anyone at NSUT can file a complaint in plain English or Hing
 | 2. Database logic (triggers, procedures, views, security, 90 tests) | ✅ done |
 | 3. Backend (FastAPI) + LLM triage (47 tests) | ✅ done |
 | 4. Frontend (React) | ✅ done |
-| 5. Demo script, deployment | ⏳ next |
+| 5. Deployment (Neon, Render, Vercel) | ⏳ ready to deploy, see docs/04_deployment.md |
 
 ## Folder layout
 
@@ -111,4 +111,5 @@ bash scripts/run_frontend.sh      # open http://localhost:5173
 - `docs/01_database_explained.md`: how everything works, plus likely viva questions per member
 - `docs/02_backend_explained.md`: how the backend and the LLM triage work, plus viva questions
 - `docs/03_frontend_explained.md`: the screens, how they map to the database, and a demo walkthrough
+- `docs/04_deployment.md`: putting it online (Neon, Render, Vercel), step by step
 - `docs/coverage.md`: every table and feature from the design doc, mapped to code and tests

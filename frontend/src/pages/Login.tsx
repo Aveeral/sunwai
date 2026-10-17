@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { api, ApiError } from "../api/client";
@@ -13,6 +13,17 @@ export default function Login() {
   const groups = useAsync(() => api<DemoGroup[]>("/demo-users"));
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [waking, setWaking] = useState(0);
+
+  // The free hosting plan puts the server to sleep when nobody uses it;
+  // the first request can take ~30 s. Keep retrying instead of failing.
+  useEffect(() => {
+    if (groups.error?.status === 0 && waking < 18) {
+      const t = setTimeout(() => { setWaking((w) => w + 1); void groups.reload(); }, 5000);
+      return () => clearTimeout(t);
+    }
+  }, [groups.error, waking]);
+  const sleeping = groups.error?.status === 0 && waking < 18;
 
   const choose = async (p: DemoPerson) => {
     setBusy(p.person_id); setError(null);
@@ -53,8 +64,8 @@ export default function Login() {
           <p className="mt-1 text-sm text-ink-soft">
             A demo login: pick a person. Each one gets the database role their position in the college gives them.
           </p>
-          <div className="mt-4"><ErrorNote error={error ?? groups.error} /></div>
-          {groups.loading && <Spinner />}
+          <div className="mt-4"><ErrorNote error={error ?? (sleeping ? null : groups.error)} /></div>
+          {(groups.loading || sleeping) && <Spinner label={sleeping ? "Waking up the server, this can take half a minute" : "Loading"} />}
           {groups.data?.map((g) => (
             <div key={g.title} className="mt-8">
               <h3 className="mb-2 text-sm font-semibold text-ink-soft">{g.title}</h3>
