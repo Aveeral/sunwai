@@ -24,7 +24,7 @@ The owner string from Neon can do anything to the database; only you use it, fro
 
 ## 2. Backend on Render (about 10 minutes)
 
-1. On render.com: **New** → **Blueprint** → choose the `Aveeral/sunwai` repository. Render reads `render.yaml` and proposes one web service, `sunwai-api`.
+1. On render.com: **New** → **Blueprint** → choose the `Aveeral/sunwai` repository (Blueprint path: `render.yaml`). Render reads it and proposes one web service, `sunwai-api`, in the **Singapore** region, next to the database. (A service's region can't be changed later; to move it, delete the Blueprint and its service and create it again.)
 2. It asks for three values:
    - `DATABASE_URL`: the `sunwai_app` line from step 1.
    - `OPENAI_API_KEY`: your OpenAI key. It is stored on Render only, never in GitHub.
@@ -58,8 +58,10 @@ Open the Vercel link, log in as Aarav and file a complaint. Done.
 |---|---|
 | Website says "Can't reach the Sunwai server" for more than a minute | Render service is down or `VITE_API_URL` is wrong. Check `/api/health` on Render, and the variable on Vercel (then redeploy on Vercel). |
 | Browser console shows a CORS error | `CORS_ORIGINS` on Render doesn't exactly match the Vercel address (https, no trailing slash). |
+| Deploy fails with `permission denied to set role "sunwai_admin"` | `DATABASE_URL` holds the Neon **owner** string, or a hand-edited one. Use the exact `sunwai_app` line that `deploy_db.sh` printed (its password is 48 hex characters). |
 | `/api/health` fails with a password error | `DATABASE_URL` on Render is old; run `deploy_db.sh` and paste the new line. |
 | `engine` says `offline (LLM unavailable)` | `OPENAI_API_KEY` on Render is missing or wrong, or the OpenAI account has no credit. The app still works with the offline classifier. |
+| `zsh: no matches found` when running `deploy_db.sh` | The Neon string must be inside double quotes: `bash scripts/deploy_db.sh "postgresql://..."`. |
 | `deploy_db.sh` says `psql: command not found` | Open a new Terminal window, or run `export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"`. |
 
 ## Viva notes

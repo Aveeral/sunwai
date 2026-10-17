@@ -1,115 +1,109 @@
 # Sunwai – AI-Routed Grievance Redressal System for NSUT
 
-A DBMS lab project. Anyone at NSUT can file a complaint in plain English or Hinglish. An LLM turns it into structured details, and the **database** does the rest:
+**Live site:** VERCEL-LINK-HERE  ·  **API:** https://sunwai-api.onrender.com/api/health
 
-- checks the complaint is complete
-- sets its priority
+Anyone at NSUT can file a complaint in plain English or Hinglish. An LLM turns it into structured details, and the **database** does the rest:
+
+- checks the complaint is complete and asks short follow-up questions when it isn't
+- sets its priority (the AI can raise it, never lower it)
 - routes it to the right office or committee
-- excludes anyone with a conflict of interest
-- enforces confidentiality with DCL
-- escalates overdue complaints automatically
+- keeps away anyone with a conflict of interest
+- enforces confidentiality with DCL (roles, column privileges, row-level security)
+- escalates overdue complaints up the chain automatically
+- handles appeals to the Ombudsperson and question-wise exam re-evaluation
 
 **Team (CSDS, Section I):** Aveeral Jain (2025UCD2177), Kavya Gautam (2025UCD2143), Chetan Sameer (2025UCD2142), Piyush Aggarwal (2025UCD2116)
 
+## Using the live site
+
+1. Open the live site. The free server sleeps when unused; **the first visit can take up to a minute** (the login page says "Waking up the server").
+2. Pick a person on **Log in as**. Each one gets the database role their position gives them: students, office handlers, committee members, the triage officer, the Ombudsperson, the Registrar (admin).
+3. Good first steps:
+   - **Aarav** → *File a complaint* → type `BH-3 washroom mein paani nahi aa raha` and watch the checklist fill in.
+   - **Aarav** → *Security demo* → *Run all*, then switch to the **Registrar** and run it again.
+   - **Registrar** → *Dashboard*.
+4. The full 8-minute demo script is in [`docs/03_frontend_explained.md`](docs/03_frontend_explained.md#demo-walkthrough-about-8-minutes).
+
+All data is fictional demo data. Anyone with the link can use it, so please don't type real personal details.
+
 ## Project status
 
-| Phase | Status |
+| Part | Status |
 |---|---|
-| 1. Database structure (28 tables, seed data) | ✅ done |
-| 2. Database logic (triggers, procedures, views, security, 90 tests) | ✅ done |
-| 3. Backend (FastAPI) + LLM triage (47 tests) | ✅ done |
-| 4. Frontend (React) | ✅ done |
-| 5. Deployment (Neon, Render, Vercel) | ⏳ ready to deploy, see docs/04_deployment.md |
+| Database: 28 tables, triggers, procedures, views, security | ✅ 90 SQL tests |
+| Backend: FastAPI, LLM triage, scheduler | ✅ 47 tests |
+| Frontend: React, every role | ✅ checked end to end in a browser |
+| Deployment: Neon (database), Render (API), Vercel (website) | ✅ live |
+
+## How it fits together
+
+```
+Browser (React, Vercel)
+   │  HTTPS
+   ▼
+FastAPI (Render)  ──►  OpenAI (names removed first)
+   │  logs in as sunwai_app, then SET LOCAL ROLE <user's role> per request
+   ▼
+PostgreSQL (Neon): all rules, routing and permissions live here
+```
 
 ## Folder layout
 
 ```
 database/   the graded SQL: schema, data, triggers, procedures, views, security, tests
-docs/       explanations, coverage checklist, viva notes
-scripts/    reset the database, set up / run / test the backend
-backend/    FastAPI app: LLM triage, login, one endpoint per screen, tests
+backend/    FastAPI app: LLM triage, login, one router per screen, tests
 frontend/   React website: one screen per file in src/pages
+scripts/    set up, run, test and deploy with one command each
+docs/       explanations, viva notes, coverage checklist, deployment guide
 ```
 
-## Running the database on a Mac
+## Running it on your own computer (Mac)
 
-**1. Install PostgreSQL 16 (one time).** The easiest option is **Postgres.app** (https://postgresapp.com): download it, open it, and click *Initialize*.
-
-Then add its tools to your PATH so `psql` works in Terminal:
+You need **PostgreSQL** (Postgres.app from https://postgresapp.com, then `sudo mkdir -p /etc/paths.d && echo /Applications/Postgres.app/Contents/Versions/latest/bin | sudo tee /etc/paths.d/postgresapp` and reopen Terminal), **Python 3.10+** and **Node.js 18+**.
 
 ```bash
-sudo mkdir -p /etc/paths.d && echo /Applications/Postgres.app/Contents/Versions/latest/bin | sudo tee /etc/paths.d/postgresapp
+cp .env.example .env               # once; add your OpenAI key (optional: without it an offline classifier is used)
+bash scripts/reset_db.sh           # build the local database (run again any time to reset the data)
+bash scripts/run_tests.sh          # 90 SQL checks, every line should say PASS
+
+bash scripts/setup_backend.sh      # once
+bash scripts/run_backend.sh        # API on http://localhost:8000  (try it at /docs)
+
+bash scripts/setup_frontend.sh     # once, in a second Terminal tab
+bash scripts/run_frontend.sh       # website on http://localhost:5173
+
+bash scripts/test_backend.sh       # 47 backend checks (resets the database before and after)
 ```
 
-Close and reopen Terminal, then check it works:
+Run each script exactly as written, one line at a time.
 
-```bash
-psql --version
-```
-
-With Homebrew instead:
-
-```bash
-brew install postgresql@16 && brew services start postgresql@16
-```
-
-**2. Build the database and run the tests:**
-
-```bash
-cd Sunwai
-./scripts/reset_db.sh          # creates the 'sunwai' database and loads everything
-./scripts/run_tests.sh         # 90 checks; every line should say PASS
-```
-
-**3. Look around:**
+### Try the database security by hand
 
 ```bash
 psql sunwai
 ```
-
-Then, inside `psql`:
-
-```sql
-SET search_path TO sunwai;
-SELECT * FROM v_dashboard_summary;
-SELECT complaint_id, category, status, routing_reason FROM v_complaint_overview WHERE status <> 'Closed';
-SELECT * FROM v_ai_accuracy;
-```
-
-**4. Try the security yourself.** These commands pretend to be Riya (person 1002) using the student role:
-
 ```sql
 BEGIN;
-SELECT set_config('app.user_id', '1002', true);
+SELECT set_config('app.user_id', '1002', true);   -- act as Riya, a student
 SET LOCAL ROLE sunwai_student;
 SELECT complaint_id, category, status FROM sunwai.v_my_complaints;   -- only her own
 SELECT * FROM sunwai.v_icc_cases;                                    -- permission denied
 ROLLBACK;
 ```
 
-## Running the backend
-
-Needs Python 3.10 or newer (`python3 --version`). Put your settings in `.env` (copy `.env.example`); without an OpenAI key the offline classifier is used.
-
-```bash
-bash scripts/setup_backend.sh     # once
-bash scripts/run_backend.sh       # http://localhost:8000/docs to try every endpoint
-bash scripts/test_backend.sh      # 47 checks (resets the database before and after)
-```
-
-## Running the website
-
-Needs Node.js 18 or newer (`node -v`). Keep the backend running in another Terminal tab.
-
-```bash
-bash scripts/setup_frontend.sh    # once
-bash scripts/run_frontend.sh      # open http://localhost:5173
-```
-
 ## Documents
 
-- `docs/01_database_explained.md`: how everything works, plus likely viva questions per member
-- `docs/02_backend_explained.md`: how the backend and the LLM triage work, plus viva questions
-- `docs/03_frontend_explained.md`: the screens, how they map to the database, and a demo walkthrough
-- `docs/04_deployment.md`: putting it online (Neon, Render, Vercel), step by step
-- `docs/coverage.md`: every table and feature from the design doc, mapped to code and tests
+| File | What's in it |
+|---|---|
+| [`docs/01_database_explained.md`](docs/01_database_explained.md) | How the database works, plus viva questions per team member |
+| [`docs/02_backend_explained.md`](docs/02_backend_explained.md) | The backend and the LLM triage, plus viva questions |
+| [`docs/03_frontend_explained.md`](docs/03_frontend_explained.md) | Every screen, what database objects it uses, and the demo script |
+| [`docs/04_deployment.md`](docs/04_deployment.md) | Neon, Render and Vercel step by step; resetting the live demo data |
+| [`docs/coverage.md`](docs/coverage.md) | Every table and feature from the design document, mapped to code and tests |
+
+## Before the viva
+
+- Open the live site **5 minutes early** so the server is awake.
+- For fresh demo data, run `bash scripts/deploy_db.sh "<Neon owner connection string>"` and paste the `sunwai_app` line it prints into Render's `DATABASE_URL` (see `docs/04_deployment.md`).
+- Don't push code on the day of the viva: every push redeploys automatically.
+- Backup plan: run it locally (above) if the internet or a service fails.

@@ -16,10 +16,14 @@ if [ -z "$OWNER_URL" ]; then
 fi
 cd "$(dirname "$0")/../database"
 
+# The build runs many statements that rely on session settings (search_path),
+# so it must use a direct connection, not Neon's pooler ("-pooler" in the host).
+BUILD_URL="${OWNER_URL/-pooler./.}"
+
 APP_PASSWORD="$(openssl rand -hex 24)"
 echo "Building the Sunwai database on Neon (about a minute)..."
-psql "$OWNER_URL" -q -v ON_ERROR_STOP=1 -v app_password="$APP_PASSWORD" -f run_all.sql > /dev/null
-psql "$OWNER_URL" -c "SELECT * FROM sunwai.v_dashboard_summary;"
+psql "$BUILD_URL" -q -v ON_ERROR_STOP=1 -v app_password="$APP_PASSWORD" -f run_all.sql > /dev/null
+psql "$BUILD_URL" -c "SELECT * FROM sunwai.v_dashboard_summary;"
 
 # same address, but logging in as sunwai_app instead of the owner
 APP_URL="$(python3 - "$OWNER_URL" "$APP_PASSWORD" <<'PY'
