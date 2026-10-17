@@ -1,31 +1,52 @@
 #!/usr/bin/env bash
-# Load (or reload) the Sunwai database on Neon.
+# Load (or reset) the Sunwai database on Neon.
 #
-# Usage:  bash scripts/deploy_db.sh "postgresql://neondb_owner:...@ep-xxx.neon.tech/neondb?sslmode=require"
+# First time:   bash scripts/deploy_db.sh "postgresql://neondb_owner:...neon.tech/neondb?sslmode=require"
+# Every reset:  bash scripts/deploy_db.sh
 #
-# Builds everything (schema, data, roles, security), gives the sunwai_app login
-# a long random password, and prints the DATABASE_URL to paste into Render.
-# Running it again resets the demo data (handy right before the viva) and
-# creates a new password, so update Render afterwards.
+# The first run remembers the Neon string and the app password in .deploy.env
+# (never committed: it is in .gitignore). Later runs reuse both, so the
+# DATABASE_URL on Render stays the same and never needs updating.
+# Use --new-password to make a fresh app password (then update Render once).
 set -euo pipefail
-OWNER_URL="${1:-}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+STATE="$ROOT/.deploy.env"
+
+OWNER_URL=""; NEW_PW=0
+for a in "$@"; do
+  case "$a" in
+    --new-password) NEW_PW=1 ;;
+    *) OWNER_URL="$a" ;;
+  esac
+done
+
+# shellcheck disable=SC1090
+[ -f "$STATE" ] && source "$STATE"
+OWNER_URL="${OWNER_URL:-${NEON_OWNER_URL:-}}"
 if [ -z "$OWNER_URL" ]; then
-  echo "Give the Neon connection string (the owner one) in quotes:"
+  echo "First time: give the Neon connection string (the owner one) in quotes:"
   echo '  bash scripts/deploy_db.sh "postgresql://neondb_owner:...@...neon.tech/neondb?sslmode=require"'
   exit 1
 fi
-cd "$(dirname "$0")/../database"
+APP_PASSWORD="${APP_PASSWORD:-}"
+if [ -z "$APP_PASSWORD" ] || [ "$NEW_PW" = 1 ]; then
+  APP_PASSWORD="$(openssl rand -hex 24)"
+  PW_CHANGED=1
+else
+  PW_CHANGED=0
+fi
+umask 077
+printf 'NEON_OWNER_URL=%q\nAPP_PASSWORD=%q\n' "$OWNER_URL" "$APP_PASSWORD" > "$STATE"
 
-# The build runs many statements that rely on session settings (search_path),
-# so it must use a direct connection, not Neon's pooler ("-pooler" in the host).
+# The build relies on session settings, so it uses a direct connection,
+# not Neon's pooler ("-pooler" in the host name).
 BUILD_URL="${OWNER_URL/-pooler./.}"
 
-APP_PASSWORD="$(openssl rand -hex 24)"
-echo "Building the Sunwai database on Neon (about a minute)..."
+cd "$ROOT/database"
+echo "Rebuilding the Sunwai database on Neon (about a minute)..."
 psql "$BUILD_URL" -q -v ON_ERROR_STOP=1 -v app_password="$APP_PASSWORD" -f run_all.sql > /dev/null
 psql "$BUILD_URL" -c "SELECT * FROM sunwai.v_dashboard_summary;"
 
-# same address, but logging in as sunwai_app instead of the owner
 APP_URL="$(python3 - "$OWNER_URL" "$APP_PASSWORD" <<'PY'
 import sys
 from urllib.parse import urlsplit, urlunsplit
@@ -35,6 +56,11 @@ print(urlunsplit((u.scheme, f"sunwai_app:{sys.argv[2]}@{host}", u.path, u.query,
 PY
 )"
 echo
-echo "Done. Put this in Render as DATABASE_URL (keep it secret):"
-echo
-echo "  $APP_URL"
+if [ "$PW_CHANGED" = 1 ]; then
+  echo "Done. NEW app password: put this in Render as DATABASE_URL, then Save:"
+  echo
+  echo "  $APP_URL"
+else
+  echo "Done. Fresh demo data loaded. Render's DATABASE_URL is unchanged; nothing to update."
+  echo "(If the site shows errors for a minute, Render -> Manual Deploy -> Restart service.)"
+fi
