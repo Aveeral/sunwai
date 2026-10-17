@@ -1,6 +1,6 @@
 # Sunwai – AI-Routed Grievance Redressal System for NSUT
 
-**Live site:** VERCEL-LINK-HERE  ·  [**API:** https://sunwai-api.onrender.com/api/health](https://sunwai-nine.vercel.app)
+**Live site:** VERCEL-LINK-HERE  ·  [**API:** https://sunwai-nine.vercel.app]
             
 
 Anyone at NSUT can file a complaint in plain English or Hinglish. An LLM turns it into structured details, and the **database** does the rest:
